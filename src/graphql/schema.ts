@@ -25,8 +25,9 @@ export const typeDefs = gql`
     }
     type Query{
         getIndex:String
-        getAllBall:[BallData]
+        getAllBall(blueBall:Int,redBall:[Int],period:String,date:String,firstPrizeNumber:Int):[BallData]
         getNewPeriod:[BallData]
+        getLottery(blueBall:Int!,redBall:[Int]!):[BallData]
     }
     type Mutation{
         addOnePerios(post:BallList):String
@@ -45,23 +46,47 @@ export const resolvers = {
         },
         getAllBall: async (parent, args, context, info) => {
             let data;
-            if (allSsqData.length === 0) {
-                data = await mongoose.model('History').find({})
-                allSsqData = [...data]
-            } else {
-                data = allSsqData;
+            const {blueBall, redBall, period, date, firstPrizeNumber} = args;
+            let key = [];
+            for (let i in args) {
+                if (args[i] === undefined) continue;
+                key.push(i)
             }
+            const filterObj = {};
+            key.forEach(item => {
+                if (item === 'redBall') {
+                    filterObj[item] = {$all: args[item]}
+                } else {
+                    filterObj[item] = args[item];
+                }
+            })
+            data = await mongoose.model('History').find(filterObj)
             return data
         },
         getNewPeriod: async (parent, args, context, info) => {
             return await mongoose.model('History').find({}).sort({period: -1}).limit(1)
+        },
+        getLottery: async (parent, args, context, info) => {
+            const {blueBall, redBall} = args;
+            const filterObj = {
+                $or: [
+                    {
+                        $and: [
+                            {blueBall},
+                            {redBall: {$all: redBall}}
+                        ]
+                    },
+                    {redBall: {$all: redBall}}
+                ]
+            }
+            return await mongoose.model('History').find(filterObj)
         }
     },
     Mutation: {
-        addOnePerios: async (parent,args,context,info)=>{
-            const {redBall,blueBall,date,perios}= args.post
-            let data = await mongoose.model('OnePerios').create({redBall,blueBall,date,perios});
-            if(data){
+        addOnePerios: async (parent, args, context, info) => {
+            const {redBall, blueBall, date, perios} = args.post
+            let data = await mongoose.model('OnePerios').create({redBall, blueBall, date, perios});
+            if (data) {
                 return 'success'
             }
             return 'failed'
